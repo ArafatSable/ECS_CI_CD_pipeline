@@ -7,19 +7,19 @@ on:
 
 env:
   AWS_REGION: ap-south-1
-  ECR_REPOSITORY: demo_arafat  # Replace with your actual ECR repository name
+  ECR_REPOSITORY: demo_arafat    # Replace with your ECR repository name
 
 jobs:
   deploy:
-    name: Deploy to Amazon ECS
+    name: Deploy
     runs-on: ubuntu-latest
     environment: development
 
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Configure AWS Credentials
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -30,7 +30,7 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build, Tag, and Push Docker Image
+      - name: Build, tag, and push image to Amazon ECR
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -40,12 +40,23 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Deploy to Amazon ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        with:
-          task-definition: demo_ci_cd_ecs  # Ensure this file exists in your repository
-          service: demo_ci_cd_ecs  # Replace with your actual ECS service name
-          cluster: demo_ci_cd_ecs  # Replace with your actual ECS cluster name
-          region: ap-south-1
-          image: ${{ steps.build-image.outputs.image }}
-          wait-for-service-stability: true
+      - name: Update ECS service to use new image
+        run: |
+          # Get the latest task definition revision
+          TASK_DEF=$(aws ecs describe-task-definition --task-definition demo_ci_cd_ecs --query "taskDefinition.taskDefinitionArn" --output text)
+          
+          # Register a new task definition revision with the new image
+          NEW_TASK_DEF=$(aws ecs register-task-definition \
+            --family demo_ci_cd_ecs \
+            --container-definitions "$(aws ecs describe-task-definition --task-definition $TASK_DEF --query 'taskDefinition.containerDefinitions' --output json | jq '.[0].image = \"'"$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"'\"')" \
+            --query "taskDefinition.taskDefinitionArn" --output text)
+          
+          # Update the ECS service to use the latest task definition revision
+          aws ecs update-service \
+            --cluster demo_ci_cd_ecs \
+            --service demo_ci_cd_ecs \
+            --task-definition $NEW_TASK_DEF \
+            --desired-count 1 \
+            --region ${{ env.AWS_REGION }} \
+            --force-new-deployment
+
