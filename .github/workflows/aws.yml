@@ -44,7 +44,7 @@ jobs:
       - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
-          task-definition: ecs-task-def.json
+          task-definition: demo_ci_cd_ecs.json
           service: demo_ci_cd_ecs   # Replace with your ECS service name
           cluster: demo_ci_cd_ecs  # Replace with your ECS cluster name
           wait-for-service-stability: true
