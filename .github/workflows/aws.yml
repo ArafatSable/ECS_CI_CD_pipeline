@@ -36,6 +36,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: latest
         run: |
+          # Build the Docker image
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
@@ -44,13 +45,13 @@ jobs:
         run: |
           # Get the latest task definition revision
           TASK_DEF=$(aws ecs describe-task-definition --task-definition demo_ci_cd_ecs --query "taskDefinition.taskDefinitionArn" --output text)
-          
+
           # Register a new task definition revision with the new image
           NEW_TASK_DEF=$(aws ecs register-task-definition \
             --family demo_ci_cd_ecs \
-            --container-definitions "$(aws ecs describe-task-definition --task-definition $TASK_DEF --query 'taskDefinition.containerDefinitions' --output json | jq '.[0].image = \"'"$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"'\"')" \
+            --container-definitions "$(aws ecs describe-task-definition --task-definition $TASK_DEF --query 'taskDefinition.containerDefinitions' --output json | jq -r '.[0] | .image = "'"$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"'"'')" \
             --query "taskDefinition.taskDefinitionArn" --output text)
-          
+
           # Update the ECS service to use the latest task definition revision
           aws ecs update-service \
             --cluster demo_ci_cd_ecs \
@@ -59,4 +60,3 @@ jobs:
             --desired-count 1 \
             --region ${{ env.AWS_REGION }} \
             --force-new-deployment
-
