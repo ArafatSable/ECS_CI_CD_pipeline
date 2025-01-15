@@ -40,10 +40,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:latest" >> $GITHUB_OUTPUT
 
-      - name: Update ECS Task Definition
-        run: |
-          sed -i "s|<IMAGE_PLACEHOLDER>|${{ steps.build-image.outputs.image }}|g" ecs-task-def.json
-
+   
       - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
