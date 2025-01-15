@@ -32,14 +32,18 @@ jobs:
 
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: latest
         run: |
           # Build the Docker image
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          docker build -t demo_arafat .
+
+          # Tag the Docker image for ECR
+          docker tag demo_arafat:latest 975050086565.dkr.ecr.ap-south-1.amazonaws.com/demo_arafat:latest
+
+          # Push the Docker image to ECR
+          docker push 975050086565.dkr.ecr.ap-south-1.amazonaws.com/demo_arafat:latest
+
+          # Output the image for later steps (if necessary)
+          echo "image=975050086565.dkr.ecr.ap-south-1.amazonaws.com/demo_arafat:latest" >> $GITHUB_OUTPUT
 
       - name: Update ECS service to use new image
         run: |
@@ -49,7 +53,7 @@ jobs:
           # Register a new task definition revision with the new image
           NEW_TASK_DEF=$(aws ecs register-task-definition \
             --family demo_ci_cd_ecs \
-            --container-definitions "$(aws ecs describe-task-definition --task-definition $TASK_DEF --query 'taskDefinition.containerDefinitions' --output json | jq -r '.[0] | .image = "'"$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"'"'')" \
+            --container-definitions "$(aws ecs describe-task-definition --task-definition $TASK_DEF --query 'taskDefinition.containerDefinitions' --output json | jq --arg image "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '.[0].image = $image')" \
             --query "taskDefinition.taskDefinitionArn" --output text)
 
           # Update the ECS service to use the latest task definition revision
