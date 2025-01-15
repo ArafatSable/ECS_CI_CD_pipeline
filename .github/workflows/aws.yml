@@ -43,9 +43,9 @@ jobs:
       - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
-          task-definition: demo_ci_cd_ecs.json  # Ensure this file exists in your repository
+          task-definition: demo_ci_cd_ecs  # Ensure this file exists in your repository
           service: demo_ci_cd_ecs  # Replace with your actual ECS service name
           cluster: demo_ci_cd_ecs  # Replace with your actual ECS cluster name
-          region: ${{ env.AWS_REGION }}
+          region: ap-south-1
           image: ${{ steps.build-image.outputs.image }}
           wait-for-service-stability: true
