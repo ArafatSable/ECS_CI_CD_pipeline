@@ -7,19 +7,19 @@ on:
 
 env:
   AWS_REGION: ap-south-1
-  ECR_REPOSITORY: demo_arafat   
+  ECR_REPOSITORY: demo_arafat  # Replace with your actual ECR repository name
 
 jobs:
   deploy:
-    name: Deploy
+    name: Deploy to Amazon ECS
     runs-on: ubuntu-latest
     environment: development
 
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -30,21 +30,22 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build, tag, and push image to Amazon ECR
+      - name: Build, Tag, and Push Docker Image
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: latest
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:latest" >> $GITHUB_OUTPUT
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-   
       - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
-          task-definition: demo_ci_cd_ecs.json
-          service: demo_ci_cd_ecs   # Replace with your ECS service name
-          cluster: demo_ci_cd_ecs  # Replace with your ECS cluster name
+          task-definition: demo_ci_cd_ecs.json  # Ensure this file exists in your repository
+          service: demo_ci_cd_ecs  # Replace with your actual ECS service name
+          cluster: demo_ci_cd_ecs  # Replace with your actual ECS cluster name
+          region: ${{ env.AWS_REGION }}
+          image: ${{ steps.build-image.outputs.image }}
           wait-for-service-stability: true
