@@ -1,8 +1,8 @@
 {
-    "taskDefinitionArn": "arn:aws:ecs:ap-south-1:975050086565:task-definition/demo_ci_cd:1",
+    "taskDefinitionArn": "arn:aws:ecs:ap-south-1:975050086565:task-definition/demo_ci_cd_ecs:7",
     "containerDefinitions": [
         {
-            "name": "demo_ci_cd_ecs",
+            "name": "demo_ci_cd",
             "image": "975050086565.dkr.ecr.ap-south-1.amazonaws.com/demo_arafat:latest",
             "cpu": 0,
             "portMappings": [
@@ -16,10 +16,8 @@
             ],
             "essential": true,
             "environment": [],
-            "environmentFiles": [],
             "mountPoints": [],
             "volumesFrom": [],
-            "ulimits": [],
             "logConfiguration": {
                 "logDriver": "awslogs",
                 "options": {
@@ -35,10 +33,10 @@
             "systemControls": []
         }
     ],
-    "family": "demo_ci_cd",
+    "family": "demo_ci_cd_ecs",
     "executionRoleArn": "arn:aws:iam::975050086565:role/ecsTaskExecutionRole",
     "networkMode": "awsvpc",
-    "revision": 1,
+    "revision": 7,
     "volumes": [],
     "status": "ACTIVE",
     "requiresAttributes": [
@@ -84,7 +82,8 @@
         "cpuArchitecture": "X86_64",
         "operatingSystemFamily": "LINUX"
     },
-    "registeredAt": "2025-01-15T10:06:04.307Z",
+    "registeredAt": "2025-01-16T07:06:05.692Z",
     "registeredBy": "arn:aws:sts::975050086565:assumed-role/AWSReservedSSO_AdministratorAccess_ba2adc4a06654653/arafatsable@gmail.com",
+    "enableFaultInjection": false,
     "tags": []
 }
