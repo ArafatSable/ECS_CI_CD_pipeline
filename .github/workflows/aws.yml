@@ -7,7 +7,7 @@ on:
 
 env:
   AWS_REGION: ap-south-1
-  ECR_REPOSITORY: demo_arafat   
+  ECR_REPOSITORY: demo_arafat    # Replace with your ECR repository name
 
 jobs:
   deploy:
@@ -43,7 +43,7 @@ jobs:
       - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
-          task-definition: ecs-task-def.json
+          task-definition: demo_ci_cd_ecs-revision9.json # Ensure this is the correct path to your ECS task definition
           service: demo_ci_cd_ecs   # Replace with your ECS service name
           cluster: demo_ci_cd_ecs  # Replace with your ECS cluster name
           region: ${{ env.AWS_REGION }}
