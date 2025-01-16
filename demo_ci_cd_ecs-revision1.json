@@ -1,5 +1,5 @@
 {
-    "taskDefinitionArn": "arn:aws:ecs:ap-south-1:975050086565:task-definition/demo_ci_cd_ecs:1",
+    "taskDefinitionArn": "arn:aws:ecs:ap-south-1:975050086565:task-definition/demo_ci_cd:1",
     "containerDefinitions": [
         {
             "name": "demo_ci_cd_ecs",
@@ -35,7 +35,7 @@
             "systemControls": []
         }
     ],
-    "family": "demo_ci_cd_ecs",
+    "family": "demo_ci_cd",
     "executionRoleArn": "arn:aws:iam::975050086565:role/ecsTaskExecutionRole",
     "networkMode": "awsvpc",
     "revision": 1,
