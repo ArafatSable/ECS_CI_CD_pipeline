@@ -84,6 +84,5 @@
     },
     "registeredAt": "2025-01-16T07:06:05.692Z",
     "registeredBy": "arn:aws:sts::975050086565:assumed-role/AWSReservedSSO_AdministratorAccess_ba2adc4a06654653/arafatsable@gmail.com",
-    "enableFaultInjection": false,
     "tags": []
 }
