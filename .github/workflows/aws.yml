@@ -7,19 +7,22 @@ on:
 
 env:
   AWS_REGION: ap-south-1
-  ECR_REPOSITORY: demo_arafat    # Replace with your ECR repository name
+  ECS_SERVICE: demo_ci_cd_ecs
+  ECR_REPOSITORY: demo_arafat
+  ECS_CLUSTER: demo_ci_cd_ecs
+  CONTAINER_NAME: demo_ci_cd_ecs
 
 jobs:
   deploy:
-    name: Deploy
+    name: Deploy to Amazon ECS
     runs-on: ubuntu-latest
     environment: development
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -30,22 +33,79 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build, tag, and push image to Amazon ECR
+      - name: Build, Tag, and Push Image to Amazon ECR
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: latest
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          # Get branch name and sanitize it
+          SANITIZED_BRANCH_NAME=$(echo $GITHUB_REF_NAME | tr '/+' '-')
+
+          # Get first 8 characters of commit SHA
+          COMMIT_SHA=$(echo $GITHUB_SHA | cut -c1-8)
+
+          # Get timestamp in YYYYMMDDHHMMSS format
+          TIMESTAMP=$(date +'%Y%m%d%H%M%S')
+
+          # Detect architecture
+          ARCH=$(uname -m)
+          if [ "$ARCH" != "aarch64" ] && [ "$ARCH" != "arm64" ]; then
+              ARCH_SUFFIX="-$ARCH"
+          else
+              ARCH_SUFFIX=""
+          fi
+
+          # Construct final image tag
+          IMAGE_TAG="${SANITIZED_BRANCH_NAME}-${COMMIT_SHA}-${TIMESTAMP}${ARCH_SUFFIX}"
+          IMAGE_URI="$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG"
+
+          echo "Using image tag: $IMAGE_TAG"
+          
+          # Build and push Docker image
+          docker build -t $IMAGE_URI .
+          docker push $IMAGE_URI
+
+          # Output image URI for the next steps
+          echo "image=$IMAGE_URI" >> $GITHUB_ENV
+
+      - name: Fetch and Clean Task Definition
+        run: |
+          aws ecs describe-task-definition --task-definition demo_ci_cd_ecs \
+          --query 'taskDefinition' > raw-task.json
+          jq 'del(.enableFaultInjection)' raw-task.json > cleaned-task.json
+
+      - name: Render New Task Definition
+        id: render-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: cleaned-task.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ env.image }}
 
       - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
-          task-definition: demo_ci_cd_ecs-revision9.json # Ensure this is the correct path to your ECS task definition
-          service: demo_ci_cd_ecs   # Replace with your ECS service name
-          cluster: demo_ci_cd_ecs  # Replace with your ECS cluster name
-          region: ${{ env.AWS_REGION }}
-          image: ${{ steps.build-image.outputs.image }}
+          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
+
+      # ✅ Fetch the second latest task definition (latest will be the new one created)
+      - name: Fetch Latest Task Definition Revision
+        run: |
+          LATEST_TASK_DEF=$(aws ecs list-task-definitions \
+            --family-prefix demo_ci_cd_ecs \
+            --sort DESC \
+            --query 'taskDefinitionArns[1]' \
+            --output text)
+          
+          if [[ "$LATEST_TASK_DEF" != "None" ]]; then
+            echo "LATEST_TASK_DEF=$LATEST_TASK_DEF" >> $GITHUB_ENV
+          fi
+
+      # ✅ Deregister the previous task definition (keeping only the latest one)
+      - name: Deregister Previous Task Definition
+        if: env.LATEST_TASK_DEF != 'None'
+        run: |
+          echo "Deregistering old task definition: $LATEST_TASK_DEF"
+          aws ecs deregister-task-definition --task-definition $LATEST_TASK_DEF
