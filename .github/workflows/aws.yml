@@ -1,3 +1,4 @@
+
 name: Deploy to Amazon ECS
 
 on:
@@ -11,10 +12,12 @@ env:
   ECR_REPOSITORY: demo_arafat
   ECS_CLUSTER: demo_ci_cd_ecs
   CONTAINER_NAME: demo_ci_cd_ecs
+  CPU: 512  # Update CPU value here
+  MEMORY: 2048  # Update Memory value here
 
 jobs:
   deploy:
-    name: Deploy to Amazon ECS
+    name: Deploy
     runs-on: ubuntu-latest
     environment: development
 
@@ -22,7 +25,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Configure AWS Credentials
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -60,7 +63,7 @@ jobs:
           IMAGE_URI="$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG"
 
           echo "Using image tag: $IMAGE_TAG"
-          
+
           # Build and push Docker image
           docker build -t $IMAGE_URI .
           docker push $IMAGE_URI
@@ -74,11 +77,16 @@ jobs:
           --query 'taskDefinition' > raw-task.json
           jq 'del(.enableFaultInjection)' raw-task.json > cleaned-task.json
 
-      - name: Render New Task Definition
+      - name: Modify Task Definition with New CPU and Memory
+        run: |
+          jq '.cpu = "${{ env.CPU }}" | .memory = "${{ env.MEMORY }}"' cleaned-task.json > updated-task.json
+          cat updated-task.json  # Print the updated task definition for debugging
+
+      - name: Render New Task Definition (Only Updates Image, CPU, Memory)
         id: render-task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: cleaned-task.json
+          task-definition: updated-task.json
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ env.image }}
 
@@ -90,22 +98,10 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
 
-      # ✅ Fetch the second latest task definition (latest will be the new one created)
-      - name: Fetch Latest Task Definition Revision
+      # **Force ECS Deployment to Restart Tasks**
+      - name: Force New Deployment
         run: |
-          LATEST_TASK_DEF=$(aws ecs list-task-definitions \
-            --family-prefix demo_ci_cd_ecs \
-            --sort DESC \
-            --query 'taskDefinitionArns[1]' \
-            --output text)
-          
-          if [[ "$LATEST_TASK_DEF" != "None" ]]; then
-            echo "LATEST_TASK_DEF=$LATEST_TASK_DEF" >> $GITHUB_ENV
-          fi
-
-      # ✅ Deregister the previous task definition (keeping only the latest one)
-      - name: Deregister Previous Task Definition
-        if: env.LATEST_TASK_DEF != 'None'
-        run: |
-          echo "Deregistering old task definition: $LATEST_TASK_DEF"
-          aws ecs deregister-task-definition --task-definition $LATEST_TASK_DEF
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
+            --force-new-deployment
